@@ -26,12 +26,14 @@
   left: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  background: rgba(0, 0, 0, 0.8) !important;
+  background: rgba(0, 0, 0, 0.85) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  z-index: 999999 !important;
+  z-index: 9999999 !important;
   cursor: pointer !important;
+  filter: none !important;
+  pointer-events: all !important;
 }
 
 .ai-reveal-text {
@@ -40,7 +42,36 @@
   font-family: system-ui, -apple-system, sans-serif !important;
   text-align: center !important;
   padding: 20px !important;
+  filter: none !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
 }
+
+/* Message overlay for levels 1 and 2 */
+.ai-message-overlay {
+  position: fixed !important;
+  top: 20px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+  color: white !important;
+  padding: 15px 20px !important;
+  border-radius: 8px !important;
+  font-family: system-ui, -apple-system, sans-serif !important;
+  text-align: center !important;
+  z-index: 9999998 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  max-width: 400px !important;
+  filter: none !important;
+  pointer-events: none !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+}
+
+.ai-message-text {
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+  filter: none !important;
+}
+
 
 /* Delay gate for videos */
 .ai-delay-gate {

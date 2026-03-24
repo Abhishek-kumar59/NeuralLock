@@ -91,4 +91,59 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Just acknowledge status updates
     sendResponse({ received: true });
   }
+
+  if (request.type === 'OPENAI_CLASSIFY') {
+    (async () => {
+      const { url, baseClassification, metadata } = request.data || {};
+      try {
+        // Get API key from storage
+        const result = await chrome.storage.local.get(['openaiApiKey']);
+        const apiKey = result.openaiApiKey;
+
+        if (!apiKey) {
+          sendResponse({ classification: null, error: 'OpenAI API key not set. Please set it in the extension popup.' });
+          return;
+        }
+
+        const prompt = `You are a productivity assistant. Given the site URL and metadata, decide if this should be treated as a distraction requiring intervention or as productive/neutral. 
+
+Classify as "productive" if the content is educational, work-related, tutorial, or skill-building.
+Classify as "distraction" if the content is entertainment, movies, TV shows, gaming, social media, or leisure activities.
+Classify as "neutral" only for ambiguous or non-video content.
+
+URL: ${url}
+Base classification: ${JSON.stringify(baseClassification)}
+Metadata: ${JSON.stringify(metadata)}
+
+Respond in JSON: { "category": "distraction|productive|neutral", "type": string, "interventionLevel": 0|1|2|3, "reason": string }`;
+
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'system', content: 'You are a fine-grained web distraction classifier.' }, { role: 'user', content: prompt }],
+            max_tokens: 200
+          })
+        });
+
+        const body = await res.json();
+        const text = body?.choices?.[0]?.message?.content || '';
+        let parsed = null;
+        try { parsed = JSON.parse(text.trim()); } catch (err) { parsed = null; }
+
+        if (parsed && parsed.category) {
+          sendResponse({ classification: parsed });
+        } else {
+          sendResponse({ classification: null, error: 'OpenAI parse fail', raw: text });
+        }
+      } catch (err) {
+        sendResponse({ classification: null, error: err.message || 'OpenAI request failed' });
+      }
+    })();
+    return true; // async sendResponse
+  }
 });

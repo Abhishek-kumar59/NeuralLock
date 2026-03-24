@@ -132,24 +132,72 @@ const Classifier = {
         this.sessionData.videoStartTime = Date.now();
         this.sessionData.currentVideoId = currentVideoId;
         this.sessionData.isEducational = this.isEducationalYouTubeVideo();
+        this.runOpenAIClassification();
         lastVideoId = currentVideoId;
       }
     }, 1000);
   },
 
-  classifyCurrentPage() {
-    const url = window.location.href;
-    this.sessionData.url = url;
-    
-    // Initialize video start time if not set
-    if (!this.sessionData.videoStartTime) {
-      this.sessionData.videoStartTime = Date.now();
-    }
-    if (!this.sessionData.sessionStartTime) {
-      this.sessionData.sessionStartTime = Date.now();
-    }
+  getPageMetadata() {
+    const title = document.title || '';
+    const description = (document.querySelector('meta[name="description"]') || {}).content || '';
+    const isVideoPage = Boolean(document.querySelector('video'));
+    const videoElement = document.querySelector('video');
+    const currentTime = videoElement ? videoElement.currentTime : 0;
 
-    // Check if it's educational content first
+    return {
+      title,
+      description,
+      isVideoPage,
+      currentTime,
+      url: window.location.href,
+      channel: this.getYouTubeChannel()
+    };
+  },
+
+  async openAIClassify(baseClassification) {
+    try {
+      // Check if extension context is still valid
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        return null;
+      }
+
+      const metadata = this.getPageMetadata();
+      const payload = {
+        type: 'OPENAI_CLASSIFY',
+        data: {
+          url: metadata.url,
+          baseClassification,
+          metadata
+        }
+      };
+
+      const response = await chrome.runtime.sendMessage(payload);
+      if (response && response.classification) {
+        this.sessionData.openAIResult = {
+          ...response.classification,
+          url: metadata.url,
+          reason: response.classification.reason || 'OpenAI classification'
+        };
+        return this.sessionData.openAIResult;
+      }
+    } catch (e) {
+      // if API fails or context invalidated, keep local classification.
+    }
+    return null;
+  },
+
+  async runOpenAIClassification() {
+    const baseClassification = this.getBaseClassification();
+    const aiClass = await this.openAIClassify(baseClassification);
+    if (aiClass) {
+      this.sessionData.openAIResult = aiClass;
+    }
+  },
+
+  getBaseClassification() {
+    const url = window.location.href;
+
     const educationalMatch = this.EDUCATIONAL_PATTERNS.find(p => p.pattern.test(url));
     if (educationalMatch) {
       return {
@@ -160,9 +208,7 @@ const Classifier = {
       };
     }
 
-    // Special handling for YouTube
     if (url.includes('youtube.com')) {
-      // If it's a short, it's potentially distracting
       if (url.includes('/shorts/')) {
         return {
           category: 'distracting',
@@ -171,8 +217,6 @@ const Classifier = {
           reason: 'YouTube Shorts are highly distracting'
         };
       }
-
-      // Regular watch page - check if educational
       if (url.includes('watch?v=')) {
         if (this.sessionData.isEducational) {
           return {
@@ -182,25 +226,23 @@ const Classifier = {
             reason: 'Educational video content'
           };
         }
-        // Non-educational video - neutral until watched too long
+
+        // Wait for OpenAI classification before deciding; do not force distracting.
         return {
           category: 'neutral',
           type: 'video',
           confidence: 0.5,
-          reason: 'Regular YouTube video (not flagged as distraction until watched for time)'
+          reason: 'Awaiting OpenAI classification for video content'
         };
       }
-
-      // YouTube homepage/browsing
       return {
         category: 'neutral',
         type: 'video_browsing',
         confidence: 0.6,
-        reason: 'YouTube browsing (not watching video)'
+        reason: 'YouTube browsing'
       };
     }
 
-    // Check if it's social media (highly distracting)
     const socialMatch = this.SOCIAL_PATTERNS.find(p => p.pattern.test(url));
     if (socialMatch) {
       return {
@@ -211,7 +253,6 @@ const Classifier = {
       };
     }
 
-    // Default: neutral
     return {
       category: 'neutral',
       confidence: 0.5,
@@ -219,21 +260,49 @@ const Classifier = {
     };
   },
 
-  analyzeBehavior() {
+  async classifyCurrentPage() {
+    const url = window.location.href;
+    this.sessionData.url = url;
+
+    if (!this.sessionData.videoStartTime) {
+      this.sessionData.videoStartTime = Date.now();
+    }
+    if (!this.sessionData.sessionStartTime) {
+      this.sessionData.sessionStartTime = Date.now();
+    }
+
+    const baseClassification = this.getBaseClassification();
+
+    // If we already got an OpenAI result for this URL, use it
+    if (this.sessionData.openAIResult && this.sessionData.openAIResult.url === url) {
+      return this.sessionData.openAIResult;
+    }
+
+    // Trigger OpenAI classification in background to take effect on next tick
+    if (this.sessionData.openAIPendingUrl !== url) {
+      this.sessionData.openAIPendingUrl = url;
+      this.runOpenAIClassification();
+    }
+
+    // Return base classification while OpenAI evaluation completes
+    return baseClassification;
+  },
+
+  async analyzeBehavior() {
     const videoWatchTime = Date.now() - this.sessionData.videoStartTime;
     const timeOnSite = Date.now() - this.sessionData.sessionStartTime;
     
-    // Calculate "mindless scrolling" score
+    // Calculate "mindless scrolling" score (demo-fast)
     const scrollRate = this.sessionData.scrollCount / (timeOnSite / 60000); // per minute
-    const isDoomScrolling = scrollRate > 10 && this.sessionData.scrollCount > 50;
+    const isDoomScrolling = scrollRate > 5 && this.sessionData.scrollCount > 20;
 
-    // Get base classification
-    const baseClassification = this.classifyCurrentPage();
+    // Get base classification (may be updated from OpenAI asynchronously)
+    const baseClassification = await this.classifyCurrentPage();
 
     // === INTERVENTION LOGIC ===
     
-    // Rule 1: Educational content never triggers intervention
-    if (baseClassification.type === 'educational_video' || baseClassification.category === 'productive') {
+    // Rule 1: OpenAI/educational/neutral content never triggers intervention
+    if (baseClassification.type === 'educational_video' || ['productive','neutral'].includes(baseClassification.category)) {
       return {
         ...baseClassification,
         interventionLevel: 0,
@@ -241,12 +310,12 @@ const Classifier = {
       };
     }
 
-    // Rule 2: YouTube Shorts - intervene only after 1+ minute of watching
+    // Rule 2: YouTube Shorts - more aggressive for hackathon demo
     if (baseClassification.type === 'shorts') {
       let level = 0;
-      if (videoWatchTime > 60000) level = 1;      // 1 minute: grayscale
-      if (videoWatchTime > 300000) level = 2;     // 5 minutes: blur
-      if (videoWatchTime > 600000) level = 3;     // 10 minutes: heavy blur
+      if (videoWatchTime > 10000) level = 1;      // 10 seconds: grayscale
+      if (videoWatchTime > 30000) level = 2;      // 30 seconds: blur
+      if (videoWatchTime > 60000) level = 3;      // 60 seconds: heavy blur
       
       return {
         ...baseClassification,
@@ -259,8 +328,8 @@ const Classifier = {
       };
     }
 
-    // Rule 3: Regular non-educational videos - very weak intervention
-    if (baseClassification.type === 'video' && videoWatchTime > 3600000) { // 1 hour
+    // Rule 3: Regular non-educational videos - much faster for demo
+    if (baseClassification.type === 'video' && videoWatchTime > 300000) { // 5 minutes
       return {
         ...baseClassification,
         interventionLevel: 1,
@@ -268,13 +337,33 @@ const Classifier = {
       };
     }
 
-    // Rule 4: Social media - strong intervention on doom scrolling
+    // Rule 3.5: Distracting videos (classified by OpenAI) - intervene based on watch time
+    if (baseClassification.category === 'distracting' && baseClassification.type === 'video') {
+      let level = 0;
+      if (videoWatchTime > 60000) level = 1;      // 1 minute: grayscale
+      if (videoWatchTime > 180000) level = 2;     // 3 minutes: blur
+      if (videoWatchTime > 300000) level = 3;     // 5 minutes: heavy blur
+      
+      return {
+        ...baseClassification,
+        interventionLevel: level,
+        behavior: { videoWatchTime, timeOnSite }
+      };
+    }
+
+    // Rule 4: Social media / distracting sites - graduated intervention
     if (baseClassification.category === 'distracting') {
       let level = 0;
-      if (isDoomScrolling) level = 2;             // Immediate blur for doom scrolling
-      if (timeOnSite > 600000 && !isDoomScrolling) level = 1;  // 10 min of normal scrolling
-      if (timeOnSite > 1200000) level = 2;        // 20 minutes
-      
+      if (isDoomScrolling) {
+        level = 3;                               // Immediate heavy blur for doom scrolling
+      } else if (timeOnSite > 90000) {
+        level = 3;                               // 1.5 minutes -> heavy blur
+      } else if (timeOnSite > 60000) {
+        level = 2;                               // 1 minute -> blur
+      } else if (timeOnSite > 20000) {
+        level = 1;                               // 20 seconds -> grayscale
+      }
+
       return {
         ...baseClassification,
         interventionLevel: level,
@@ -282,12 +371,19 @@ const Classifier = {
       };
     }
 
-    // Default: no intervention
-    return {
+    // Default: no intervention (neutral or unrecognized content)
+    const result = {
       ...baseClassification,
       interventionLevel: 0,
       behavior: { videoWatchTime, timeOnSite }
     };
+
+    // Debug output for tracking why neutral appears
+    if (typeof console !== 'undefined') {
+      console.debug('[Classifier] Result', result);
+    }
+
+    return result;
   }
 };
 

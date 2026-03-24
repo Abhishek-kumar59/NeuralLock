@@ -8,6 +8,20 @@ const Interventions = {
   applyGrayscale() {
     if (this.currentLevel >= 1) return;
     document.body.classList.add('ai-grayscale');
+    
+    // Add message overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'ai-message-overlay';
+    overlay.innerHTML = `
+      <div class="ai-message-text">
+        <div>🔔 Gentle Reminder</div>
+        <div style="font-size: 14px; margin-top: 8px; opacity: 0.9;">
+          You've been browsing for a bit. Consider if this is productive time.
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    
     this.currentLevel = 1;
     this.logIntervention('grayscale');
   },
@@ -17,6 +31,20 @@ const Interventions = {
     if (this.currentLevel >= 2) return;
     document.body.classList.remove('ai-grayscale');
     document.body.classList.add('ai-blur');
+    
+    // Add message overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'ai-message-overlay';
+    overlay.innerHTML = `
+      <div class="ai-message-text">
+        <div>⚠️ Time Check</div>
+        <div style="font-size: 14px; margin-top: 8px; opacity: 0.9;">
+          This site might be distracting. Take a moment to reflect on your goals.
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    
     this.currentLevel = 2;
     this.logIntervention('blur');
   },
@@ -26,14 +54,17 @@ const Interventions = {
     if (this.currentLevel >= 3) return;
     document.body.classList.add('ai-heavy-blur');
     
-    // Add click-to-reveal overlay
+    // Add click-to-reveal overlay with updated message
     const overlay = document.createElement('div');
     overlay.className = 'ai-reveal-overlay';
     overlay.innerHTML = `
       <div class="ai-reveal-text">
-        <div>⚠️ You've been here for a while</div>
+        <div>🚨 Productivity Alert</div>
         <div style="font-size: 16px; margin-top: 10px; opacity: 0.8;">
-          Click anywhere to reveal (you'll need to click again in 30 seconds)
+          You've spent significant time here. Click to continue, but consider switching to productive tasks.
+        </div>
+        <div style="font-size: 12px; margin-top: 10px; opacity: 0.6;">
+          Page will reset automatically in <span id="countdown-timer">90</span> seconds.
         </div>
       </div>
     `;
@@ -45,6 +76,20 @@ const Interventions = {
     document.body.appendChild(overlay);
     this.currentLevel = 3;
     this.logIntervention('heavy-blur');
+    
+    // Countdown timer - update every second
+    let remainingSeconds = 90;
+    const countdownInterval = setInterval(() => {
+      remainingSeconds--;
+      const timerElement = document.getElementById('countdown-timer');
+      if (timerElement) {
+        timerElement.textContent = remainingSeconds;
+      }
+      if (remainingSeconds <= 0) {
+        clearInterval(countdownInterval);
+        this.clear();
+      }
+    }, 1000);
   },
 
   // Special: Video delay gate (for YouTube, etc.)
@@ -120,7 +165,7 @@ const Interventions = {
   // Remove all interventions
   clear() {
     document.body.classList.remove('ai-grayscale', 'ai-blur', 'ai-heavy-blur');
-    document.querySelectorAll('.ai-reveal-overlay, .ai-delay-gate').forEach(el => el.remove());
+    document.querySelectorAll('.ai-reveal-overlay, .ai-delay-gate, .ai-message-overlay').forEach(el => el.remove());
     this.currentLevel = 0;
   },
 
