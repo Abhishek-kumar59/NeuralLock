@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    h1 { font-size: 16px; font-weight: 600; }
+    .status {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .status-row:last-child { margin-bottom: 0; }
+    .badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-productive { background: #00d9ff; color: #001a33; }
+    .badge-distracting { background: #ff6b6b; color: #330000; }
+    .badge-neutral { background: #888; color: #fff; }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .stat-box {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-pause {
+      background: #ff6b6b;
+      color: white;
+    }
+    .btn-pause:hover { background: #ff5252; }
+    .btn-resume {
+      background: #00d9ff;
+      color: #001a33;
+    }
+    .btn-resume:hover { background: #00c8eb; }
+    
+    .interventions {
+      margin-top: 12px;
+      background: #16213e;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .intervention-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: 12px;
+      border-bottom: 1px solid #0f3460;
+    }
+    .intervention-item:last-child { border-bottom: none; }
+    .check { color: #00d9ff; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo"><img src="icon48.png" alt="Logo" style="width:24px;height:24px; border-radius:4px;"></div>
+    <h1>Active Intervention</h1>
+  </div>
+
+  <div class="status">
+    <div class="status-row">
+      <span>Current Site</span>
+      <span id="site-category" class="badge badge-neutral">Analyzing...</span>
+    </div>
+    <div class="status-row">
+      <span>Intervention Level</span>
+      <span id="intervention-level">None</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-box">
+      <div class="stat-value" id="distraction-count">0</div>
+      <div class="stat-label">Distractions Caught</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="time-saved">0m</div>
+      <div class="stat-label">Time Reclaimed</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-pause" id="pause-btn">Pause</button>
+    <button class="btn-resume" id="resume-btn" style="display:none;">Resume</button>
+  </div>
+
+  <div class="interventions">
+    <div class="intervention-item">
+      <span class="check">✓</span>
+      <span>Auto-detect distractions</span>
+    </div>
+    <div class="intervention-item">
+      <span class="check">✓</span>
+      <span>Graduated interventions</span>
+    </div>
+    <div class="intervention-item">
+      <span class="check">✓</span>
+      <span>Physical UI changes</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
